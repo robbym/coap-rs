@@ -1,0 +1,1 @@
+initSidebarItems({"enum":[["MessageClass",""],["MessageType",""],["Requests",""],["Responses",""]],"fn":[["class_to_code",""],["class_to_str",""],["code_to_class",""],["code_to_str",""]],"struct":[["Header",""],["HeaderRaw",""]]});

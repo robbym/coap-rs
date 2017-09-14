@@ -19,38 +19,52 @@ pub struct CoAPClient {
 
 impl CoAPClient {
     /// Create a CoAP client with the peer address.
-    pub fn new<A: ToSocketAddrs>(addr: A) -> Result<CoAPClient> {
+    pub fn new<A: ToSocketAddrs, B: ToSocketAddrs>(bind_addr: A, addr: B) -> Result<CoAPClient> {
         addr.to_socket_addrs().and_then(|mut iter| {
             match iter.next() {
-                Some(SocketAddr::V4(a)) => {
-                    UdpSocket::bind("0.0.0.0:0").and_then(|s| {
-                        s.set_read_timeout(Some(Duration::new(DEFAULT_RECEIVE_TIMEOUT, 0)))
-                            .and_then(|_| {
-                                Ok(CoAPClient {
-                                    socket: s,
-                                    peer_addr: SocketAddr::V4(a),
-                                })
-                            })
+                Some(peer_addr) => {
+                    let socket = UdpSocket::bind(bind_addr)?;
+                    socket.set_read_timeout(Some(Duration::new(DEFAULT_RECEIVE_TIMEOUT, 0)))?;
+                    Ok(CoAPClient {
+                        socket,
+                        peer_addr
                     })
                 }
-                Some(SocketAddr::V6(a)) => {
-                    UdpSocket::bind(":::0").and_then(|s| {
-                        s.set_read_timeout(Some(Duration::new(DEFAULT_RECEIVE_TIMEOUT, 0)))
-                            .and_then(|_| {
-                                Ok(CoAPClient {
-                                    socket: s,
-                                    peer_addr: SocketAddr::V6(a),
-                                })
-                            })
-                    })
+                None => {
+                    Err(Error::new(ErrorKind::Other, "no address"))
                 }
-                None => Err(Error::new(ErrorKind::Other, "no address")),
             }
+
+            // match iter.next() {
+            //     Some(SocketAddr::V4(a)) => {
+            //         UdpSocket::bind("0.0.0.0:0").and_then(|s| {
+            //             s.set_read_timeout(Some(Duration::new(DEFAULT_RECEIVE_TIMEOUT, 0)))
+            //                 .and_then(|_| {
+            //                     Ok(CoAPClient {
+            //                         socket: s,
+            //                         peer_addr: SocketAddr::V4(a),
+            //                     })
+            //                 })
+            //         })
+            //     }
+            //     Some(SocketAddr::V6(a)) => {
+            //         UdpSocket::bind(":::0").and_then(|s| {
+            //             s.set_read_timeout(Some(Duration::new(DEFAULT_RECEIVE_TIMEOUT, 0)))
+            //                 .and_then(|_| {
+            //                     Ok(CoAPClient {
+            //                         socket: s,
+            //                         peer_addr: SocketAddr::V6(a),
+            //                     })
+            //                 })
+            //         })
+            //     }
+            //     None => Err(Error::new(ErrorKind::Other, "no address")),
+            // }
         })
     }
 
     /// Execute a request with the coap url and a specific timeout. Default timeout is 5s.
-    pub fn request_with_timeout(url: &str, timeout: Option<Duration>) -> Result<CoAPResponse> {
+    pub fn request_with_timeout<A: ToSocketAddrs>(bind_addr: A, url: &str, timeout: Option<Duration>) -> Result<CoAPResponse> {
         let mut url_parser = UrlParser::new();
         url_parser.scheme_type_mapper(Self::coap_scheme_type_mapper);
 
@@ -82,7 +96,7 @@ impl CoAPClient {
                     }
                 };
 
-                let client = try!(Self::new((domain, port)));
+                let client = try!(Self::new(bind_addr, (domain, port)));
                 try!(client.send(&packet));
 
                 try!(client.set_receive_timeout(timeout));
@@ -103,8 +117,8 @@ impl CoAPClient {
     }
 
     /// Execute a request with the coap url.
-    pub fn request(url: &str) -> Result<CoAPResponse> {
-        Self::request_with_timeout(url, Some(Duration::new(DEFAULT_RECEIVE_TIMEOUT, 0)))
+    pub fn request<A: ToSocketAddrs>(bind_addr: A, url: &str) -> Result<CoAPResponse> {
+        Self::request_with_timeout(bind_addr, url, Some(Duration::new(DEFAULT_RECEIVE_TIMEOUT, 0)))
     }
 
     /// Execute a request.
